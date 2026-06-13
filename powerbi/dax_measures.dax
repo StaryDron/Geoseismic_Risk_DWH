@@ -1,0 +1,256 @@
+-- =============================================================================
+-- dax_measures.dax
+-- All DAX measures for the SeismicRisk Power BI report.
+--
+-- Usage: paste each measure into Power BI Desktop via
+--        Modelling > New Measure (select the target table first)
+--        OR import the SeismicRiskModel.bim via SSAS Tabular and connect Power BI.
+--
+-- Naming convention: Polish labels (matching final reports), English technical names.
+-- =============================================================================
+
+
+-- ============================================================
+-- TABLE: FactSeismic
+-- ============================================================
+
+-- Liczba wstrząsów
+Liczba wstrząsów =
+    COUNTROWS ( FactSeismic )
+
+-- Średnia magnituda
+Średnia magnituda =
+    AVERAGE ( FactSeismic[Magnitude] )
+
+-- Maks. magnituda
+Maks. magnituda =
+    MAX ( FactSeismic[Magnitude] )
+
+-- Średnia głębokość [km]
+[Średnia głębokość [km]] =
+    AVERAGE ( FactSeismic[SeismicDepth] )
+
+-- Średnie MMI (only events with available assessment)
+Średnie MMI =
+    AVERAGEX (
+        FILTER ( FactSeismic, NOT ISBLANK ( FactSeismic[ModifiedMercalliIntensity] ) ),
+        FactSeismic[ModifiedMercalliIntensity]
+    )
+
+-- Wstrząsy M7+ (Great / Mega band)
+Wstrząsy M7+ =
+    CALCULATE (
+        COUNTROWS ( FactSeismic ),
+        FactSeismic[Magnitude] >= 7
+    )
+
+-- Wstrząsy M5-6 (Strong band)
+Wstrząsy M5-6 =
+    CALCULATE (
+        COUNTROWS ( FactSeismic ),
+        FactSeismic[Magnitude] >= 5,
+        FactSeismic[Magnitude] < 6
+    )
+
+-- % wstrząsów płytkich (Shallow)
+-- Requires DimSeismicDepth relationship active
+[% wstrząsów płytkich] =
+    DIVIDE (
+        CALCULATE ( COUNTROWS ( FactSeismic ), DimSeismicDepth[BandName] = "Shallow" ),
+        COUNTROWS ( FactSeismic )
+    ) * 100
+
+-- YoY zmiana liczby wstrząsów
+YoY Liczba wstrząsów =
+    VAR CurrentYear = SELECTEDVALUE ( DimDate[Year] )
+    VAR PrevYear    = CurrentYear - 1
+    VAR Current     = [Liczba wstrząsów]
+    VAR Previous    =
+        CALCULATE (
+            [Liczba wstrząsów],
+            DimDate[Year] = PrevYear,
+            ALL ( DimDate )
+        )
+    RETURN
+    DIVIDE ( Current - Previous, Previous ) * 100
+
+
+-- ============================================================
+-- TABLE: FactDisaster
+-- ============================================================
+
+-- Liczba katastrof
+Liczba katastrof =
+    COUNTROWS ( FactDisaster )
+
+-- Łączne ofiary
+Łączne ofiary =
+    SUM ( FactDisaster[TotalDeaths] )
+
+-- Łączni poszkodowani
+Łączni poszkodowani =
+    SUM ( FactDisaster[TotalAffected] )
+
+-- Straty materialne [USD]
+[Straty materialne [USD]] =
+    SUM ( FactDisaster[TotalDamageAdj] )
+
+-- Straty ubezpieczone [USD]
+[Straty ubezpieczone [USD]] =
+    SUM ( FactDisaster[InsuredDamage] )
+
+-- Wskaźnik ubezpieczenia [%]  — core KPI
+[Wskaźnik ubezpieczenia [%]] =
+    DIVIDE (
+        SUM ( FactDisaster[InsuredDamage] ),
+        SUM ( FactDisaster[TotalDamageAdj] )
+    ) * 100
+
+-- Luka ubezpieczeniowa [USD]
+[Luka ubezpieczeniowa [USD]] =
+    SUM ( FactDisaster[TotalDamageAdj] )
+    - SUM ( FactDisaster[InsuredDamage] )
+
+-- Liczba katastrof z tsunami
+Liczba katastrof z tsunami =
+    CALCULATE (
+        COUNTROWS ( FactDisaster ),
+        FactDisaster[Tsunami] = TRUE ()
+    )
+
+-- % katastrof z tsunami
+[% katastrof z tsunami] =
+    DIVIDE ( [Liczba katastrof z tsunami], [Liczba katastrof] ) * 100
+
+-- Śr. czas trwania katastrofy [dni]
+[Śr. czas trwania katastrofy [dni]] =
+    AVERAGEX (
+        FILTER ( FactDisaster, NOT ISBLANK ( FactDisaster[DurationDays] ) ),
+        FactDisaster[DurationDays]
+    )
+
+-- Śr. ofiary na katastrofę
+[Śr. ofiary na katastrofę] =
+    DIVIDE ( SUM ( FactDisaster[TotalDeaths] ), COUNTROWS ( FactDisaster ) )
+
+-- Straty na katastrofę [USD]
+[Straty na katastrofę [USD]] =
+    DIVIDE ( SUM ( FactDisaster[TotalDamageAdj] ), COUNTROWS ( FactDisaster ) )
+
+-- Największa pojedyncza katastrofa – ofiary
+[Maks. ofiary w katastrofie] =
+    MAX ( FactDisaster[TotalDeaths] )
+
+-- Największa pojedyncza katastrofa – straty
+[Maks. straty w katastrofie [USD]] =
+    MAX ( FactDisaster[TotalDamageAdj] )
+
+-- Skumulowane straty (running total by year for trend chart)
+[Skumulowane straty [USD]] =
+    CALCULATE (
+        SUM ( FactDisaster[TotalDamageAdj] ),
+        FILTER (
+            ALL ( DimDate[Year] ),
+            DimDate[Year] <= MAX ( DimDate[Year] )
+        )
+    )
+
+-- YoY zmiana łącznych ofiar
+YoY Ofiary =
+    VAR CurrentYear = SELECTEDVALUE ( DimDate[Year] )
+    VAR Current     = [Łączne ofiary]
+    VAR Previous    =
+        CALCULATE (
+            [Łączne ofiary],
+            DimDate[Year] = CurrentYear - 1,
+            ALL ( DimDate )
+        )
+    RETURN
+    DIVIDE ( Current - Previous, Previous ) * 100
+
+
+-- ============================================================
+-- TABLE: BridgeDisasterSeismic
+-- ============================================================
+
+-- Wstrząsów na katastrofę
+[Wstrząsów na katastrofę] =
+    DIVIDE (
+        COUNTROWS ( BridgeDisasterSeismic ),
+        DISTINCTCOUNT ( BridgeDisasterSeismic[DisasterKey] )
+    )
+
+-- Śr. odległość epicentrum–katastrofa [km]
+[Śr. odległość [km]] =
+    AVERAGEX (
+        FILTER ( BridgeDisasterSeismic, NOT ISBLANK ( BridgeDisasterSeismic[DistanceKM] ) ),
+        BridgeDisasterSeismic[DistanceKM]
+    )
+
+-- Śr. opóźnienie wstrząs→katastrofa [dni]
+[Śr. opóźnienie [dni]] =
+    AVERAGEX (
+        FILTER ( BridgeDisasterSeismic, NOT ISBLANK ( BridgeDisasterSeismic[TimeLagDays] ) ),
+        BridgeDisasterSeismic[TimeLagDays]
+    )
+
+-- Liczba katastrof z dopasowanym wstrząsem
+[Katastrof z dopasowanym wstrząsem] =
+    DISTINCTCOUNT ( BridgeDisasterSeismic[DisasterKey] )
+
+-- % katastrof z powiązanym wstrząsem USGS
+[% katastrof z wstrząsem USGS] =
+    DIVIDE (
+        [Katastrof z dopasowanym wstrząsem],
+        [Liczba katastrof]
+    ) * 100
+
+
+-- ============================================================
+-- CROSS-TABLE: Correlation / Risk measures
+-- ============================================================
+
+-- Korelacja magnituda / ofiary (Pearson-like via normalized values)
+-- Note: Power BI does not have built-in PEARSON; use scatter chart instead.
+-- This measure provides the ratio of normalised damage to normalised magnitude
+-- as a proxy metric for per-unit-magnitude loss.
+
+[Straty na jednostkę magnitudy [USD]] =
+    DIVIDE (
+        SUM ( FactDisaster[TotalDamageAdj] ),
+        SUMX (
+            RELATEDTABLE ( BridgeDisasterSeismic ),
+            RELATED ( FactSeismic[Magnitude] )
+        )
+    )
+
+-- GEM zone validation: ratio of actual losses in Very High zones vs total
+[% strat w strefie Very High (GEM)] =
+    DIVIDE (
+        CALCULATE (
+            SUM ( FactDisaster[TotalDamageAdj] ),
+            DimGeography[GeoSeismicZone] = "Very High"
+        ),
+        SUM ( FactDisaster[TotalDamageAdj] )
+    ) * 100
+
+
+-- ============================================================
+-- DYNAMIC TITLES (use in card/chart title expressions)
+-- ============================================================
+
+-- Tytuł: wybrany rok lub "Wszystkie lata"
+[Label_Rok] =
+    IF (
+        ISFILTERED ( DimDate[Year] ),
+        "Rok: " & SELECTEDVALUE ( DimDate[Year], "wiele lat" ),
+        "Wszystkie lata (2000–2024)"
+    )
+
+-- Tytuł: wybrany kraj lub "Wszystkie kraje"
+[Label_Kraj] =
+    IF (
+        ISFILTERED ( DimGeography[CountryName] ),
+        SELECTEDVALUE ( DimGeography[CountryName], "wiele krajów" ),
+        "Wszystkie kraje"
+    )
