@@ -1,18 +1,13 @@
--- =============================================================================
 -- 02_load_dim_geography.sql
--- Stored procedure: usp_Load_DimGeography
+-- Stored procedure usp_Load_DimGeography: merges ISO3 codes seen in staging
+-- against REF_CountryMaster and applies SCD2 to DimGeography (new country ->
+-- insert IsCurrent=1; name changed -> close old row, insert new version;
+-- unchanged -> no action).
 --
--- Merges unique ISO3 codes seen in both staging tables against REF_CountryMaster
--- and applies SCD Type 2 logic to DimGeography.
---
--- SCD2 rules:
---   NEW country  → INSERT with IsCurrent=1, ValidFrom=today, ValidTo=NULL
---   CHANGED name → close old row (ValidTo=yesterday, IsCurrent=0),
---                  INSERT new row
---   UNCHANGED    → no action
---
--- Called by SSIS Execute SQL Task after both staging loads succeed.
--- =============================================================================
+-- SCD2 only fires when REF_CountryMaster.CountryName itself is updated (e.g.
+-- after an official ISO 3166 name-change notice) - it does not react to the
+-- free-text country names in USGS/EMDAT staging, which are inconsistent
+-- across sources. See 07_scd2_demo.sql for a worked example.
 
 USE SeismicDisasterDWH;
 GO

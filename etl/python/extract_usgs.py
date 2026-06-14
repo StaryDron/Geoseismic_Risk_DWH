@@ -1,21 +1,17 @@
 """
-Extract seismic events from USGS Earthquake Catalog REST API and load to staging.
+Extract seismic events from the USGS Earthquake Catalog REST API into STG_USGS_Raw.
 
-Runs in incremental mode: queries ETL_RunLog for the last successful USGS run date
-and fetches data from the next day forward. On first run loads config.USGS_START_YEAR.
-
-Reverse-geocodes each event (lat/lon → ISO 3166-1 alpha-3). Events in international
-waters receive code 'XIN'.
-
-SSIS integration: invoke via Execute Process Task as
-    python extract_usgs.py
-The script exits with code 0 on success, 1 on failure.
+Runs incrementally based on ETL_RunLog, always re-querying the current year
+(per-event EventId dedup avoids duplicates). Reverse-geocodes lat/lon to
+ISO3; ocean events get 'XIN'. Invoked by SSIS via Execute Process Task.
 """
 
 import sys
 import logging
-from datetime import date, datetime, timedelta
-from io import StringIO
+from datetime import date
+
+import truststore
+truststore.inject_into_ssl()
 
 import pandas as pd
 import pycountry
@@ -32,11 +28,11 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-USGS_CSV_COLUMNS = [
-    "time", "latitude", "longitude", "depth", "mag", "magType",
-    "nst", "gap", "dmin", "rms", "net", "id", "updated",
-    "place", "type", "horizontalError", "depthError",
-    "magError", "magNst", "status", "locationSource", "magSource",
+# Properties pulled from each GeoJSON feature; geometry gives lon/lat/depth
+USGS_GEOJSON_PROPS = [
+    "time", "mag", "magType", "nst", "gap", "dmin", "rms", "net", "updated",
+    "place", "type", "horizontalError", "depthError", "magError", "magNst",
+    "status", "locationSource", "magSource", "mmi", "sig", "cdi",
 ]
 
 _ISO2_TO_ISO3_CACHE: dict[str, str] = {}
@@ -63,9 +59,11 @@ def fetch_usgs_year(year: int) -> pd.DataFrame:
     """
     Query one calendar year at M>=USGS_MIN_MAGNITUDE. The M4.5+ rate is
     ~6 000-8 000 events/year globally – well within the 20 000-row API cap.
+    GeoJSON format is used so mmi/sig/cdi (not present in the CSV feed) are
+    available alongside the standard fields.
     """
     params = {
-        "format": "csv",
+        "format": "geojson",
         "starttime": f"{year}-01-01",
         "endtime": f"{year}-12-31T23:59:59",
         "minmagnitude": config.USGS_MIN_MAGNITUDE,
@@ -74,10 +72,23 @@ def fetch_usgs_year(year: int) -> pd.DataFrame:
     }
     r = requests.get(config.USGS_API_URL, params=params, timeout=config.USGS_REQUEST_TIMEOUT)
     r.raise_for_status()
-    df = pd.read_csv(StringIO(r.text), low_memory=False)
-    if len(df) >= 19_900:
-        log.warning("Year %d returned %d rows – approaching 20 000 API limit!", year, len(df))
-    return df
+    features = r.json()["features"]
+    if len(features) >= 19_900:
+        log.warning("Year %d returned %d rows – approaching 20 000 API limit!", year, len(features))
+
+    rows = []
+    for feat in features:
+        props = feat["properties"]
+        lon, lat, depth = (feat["geometry"]["coordinates"] + [None, None, None])[:3]
+        row = {k: props.get(k) for k in USGS_GEOJSON_PROPS}
+        row["id"] = feat.get("id")
+        row["latitude"] = lat
+        row["longitude"] = lon
+        row["depth"] = depth
+        row["time"] = pd.to_datetime(row["time"], unit="ms", utc=True).isoformat() if row["time"] is not None else None
+        row["updated"] = pd.to_datetime(row["updated"], unit="ms", utc=True).isoformat() if row["updated"] is not None else None
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
 def get_last_load_date(conn: pyodbc.Connection) -> date:
@@ -123,6 +134,11 @@ def load_to_staging(conn: pyodbc.Connection, df: pd.DataFrame, run_id: int) -> i
     def _f(val):
         return None if pd.isna(val) else val
 
+    existing_ids = {row[0] for row in conn.cursor().execute("SELECT EventId FROM STG_USGS_Raw")}
+    df = df[~df["id"].astype(str).isin(existing_ids)]
+    if df.empty:
+        return 0
+
     rows = [
         (
             str(row["time"])[:30],
@@ -147,6 +163,9 @@ def load_to_staging(conn: pyodbc.Connection, df: pd.DataFrame, run_id: int) -> i
             str(row.get("status", "") or "")[:10],
             str(row.get("locationSource", "") or "")[:5],
             str(row.get("magSource", "") or "")[:5],
+            _f(row.get("mmi")),
+            _f(row.get("sig")),
+            _f(row.get("cdi")),
             str(row.get("ISO3", "XIN"))[:3],
             run_id,
         )
@@ -156,8 +175,8 @@ def load_to_staging(conn: pyodbc.Connection, df: pd.DataFrame, run_id: int) -> i
         """INSERT INTO STG_USGS_Raw (
                SrcTime, Latitude, Longitude, Depth, Mag, MagType, Nst, Gap, Dmin, Rms,
                Net, EventId, Updated, Place, EventType, HorizontalError, DepthError,
-               MagError, MagNst, [Status], LocationSource, MagSource, ISO3, LoadBatchId
-           ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               MagError, MagNst, [Status], LocationSource, MagSource, Mmi, Sig, Cdi, ISO3, LoadBatchId
+           ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         rows,
     )
     conn.commit()
@@ -166,16 +185,22 @@ def load_to_staging(conn: pyodbc.Connection, df: pd.DataFrame, run_id: int) -> i
 
 def run():
     conn = pyodbc.connect(config.connection_string(config.DB_STG_DATABASE))
+    today = date.today()
     last_date = get_last_load_date(conn)
+    end_year = max(config.USGS_END_YEAR, today.year)
+    # A past year is only "done" once its ExtractTo reached Dec 31. The
+    # current (in-progress) year is always re-queried; per-event dedup in
+    # load_to_staging() prevents duplicates.
     start_year = last_date.year + (1 if last_date >= date(last_date.year, 12, 31) else 0)
-    end_year = config.USGS_END_YEAR
+    start_year = min(start_year, today.year)
 
     if start_year > end_year:
         log.info("Staging is up to date (last load: %s). Nothing to do.", last_date)
         conn.close()
         return
 
-    run_id = start_run(conn, date(start_year, 1, 1), date(end_year, 12, 31))
+    extract_to = today if end_year == today.year else date(end_year, 12, 31)
+    run_id = start_run(conn, date(start_year, 1, 1), extract_to)
     total_loaded = total_rejected = 0
 
     try:

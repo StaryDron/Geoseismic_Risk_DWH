@@ -1,19 +1,7 @@
--- =============================================================================
 -- 03_load_fact_seismic.sql
--- Stored procedure: usp_Load_FactSeismic
---
--- Transforms STG_USGS_Raw → FactSeismic.
--- Lookup strategy:
---   DateKey        – parsed from SrcTime (UTC timestamp → YYYYMMDD)
---   GeographyKey   – ISO3 lookup on DimGeography WHERE IsCurrent=1
---   MagnitudeKey   – range lookup on DimMagnitude
---   SeismicDepthKey– range lookup on DimSeismicDepth
---
--- Idempotent: skips events whose USGS EventId already appears in staging
--- batch rows that have already been promoted (tracked via ETL_FactSeismicLoad).
--- In practice SSIS calls this once per batch; re-runs are safe because the
--- EventId uniqueness check prevents duplicates.
--- =============================================================================
+-- Stored procedure usp_Load_FactSeismic: transforms STG_USGS_Raw into
+-- FactSeismic, resolving DateKey/GeographyKey/MagnitudeKey/SeismicDepthKey.
+-- Idempotent via ETL_FactSeismicLoad.
 
 USE SeismicDisasterDWH;
 GO
@@ -64,9 +52,9 @@ BEGIN
         s.Longitude,
         s.Mag,
         s.Depth,
-        NULL,   -- ModifiedMercalliIntensity not in USGS CSV; enriched separately if needed
-        NULL,   -- SignificanceScore  – likewise
-        NULL    -- CommunityDecimalIntensity
+        s.Mmi,
+        s.Sig,
+        s.Cdi
     FROM SeismicDisasterSTG.dbo.STG_USGS_Raw s
     -- Geography lookup (current version)
     LEFT JOIN dbo.DimGeography g

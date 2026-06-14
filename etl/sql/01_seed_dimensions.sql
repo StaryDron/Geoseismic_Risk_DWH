@@ -1,23 +1,11 @@
--- =============================================================================
 -- 01_seed_dimensions.sql
--- Populates all static / reference data in SeismicDisasterDWH:
---   DimDate          (1990-01-01 … 2030-12-31)
---   DimMagnitude     (8 Richter bands)
---   DimSeismicDepth  (4 depth classes)
---   DimSeverityDeaths   (4 mortality bands)
---   DimSeverityAffected (4 affected-persons bands)
---   REF_CountryMaster   (reference table used by usp_Load_DimGeography)
---
--- Safe to re-run: each block checks for existing rows before inserting.
--- Also creates the three sequences required for surrogate key generation.
--- =============================================================================
+-- Seeds static dimensions (DimDate, DimMagnitude, DimSeismicDepth, severity
+-- bands, REF_CountryMaster) and the surrogate key sequences. Safe to re-run.
 
 USE SeismicDisasterDWH;
 GO
 
--- ---------------------------------------------------------------------------
 -- Sequences for surrogate keys (not IDENTITY so ETL controls assignment)
--- ---------------------------------------------------------------------------
 IF NOT EXISTS (SELECT 1 FROM sys.sequences WHERE name = N'Seq_GeographyKey')
     CREATE SEQUENCE dbo.Seq_GeographyKey AS INT     START WITH 1 INCREMENT BY 1;
 GO
@@ -28,9 +16,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.sequences WHERE name = N'Seq_DisasterKey')
     CREATE SEQUENCE dbo.Seq_DisasterKey  AS INT     START WITH 1 INCREMENT BY 1;
 GO
 
--- ---------------------------------------------------------------------------
 -- DimDate  1990-01-01 … 2030-12-31  (~14 976 rows)
--- ---------------------------------------------------------------------------
 IF NOT EXISTS (SELECT 1 FROM dbo.DimDate)
 BEGIN
     ;WITH
@@ -39,7 +25,7 @@ BEGIN
     L2 AS (SELECT 1 c FROM L1 a CROSS JOIN L1 b),
     L3 AS (SELECT 1 c FROM L2 a CROSS JOIN L2 b),
     L4 AS (SELECT 1 c FROM L3 a CROSS JOIN L3 b),
-    Nums AS (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1 AS n FROM L4 CROSS JOIN L4 L4b),
+    Nums AS (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1 AS n FROM L4),
     Dates AS (
         SELECT DATEADD(DAY, n, '1990-01-01') AS d
         FROM Nums
@@ -70,9 +56,7 @@ ELSE
     PRINT 'DimDate already populated – skipped.';
 GO
 
--- ---------------------------------------------------------------------------
 -- DimMagnitude  (Moment Magnitude / Richter bands)
--- ---------------------------------------------------------------------------
 IF NOT EXISTS (SELECT 1 FROM dbo.DimMagnitude)
 BEGIN
     INSERT INTO dbo.DimMagnitude (MagnitudeKey, BandCode, BandName, LowerBound, UpperBound, MagScale)
@@ -92,9 +76,7 @@ ELSE
     PRINT 'DimMagnitude already populated – skipped.';
 GO
 
--- ---------------------------------------------------------------------------
 -- DimSeismicDepth
--- ---------------------------------------------------------------------------
 IF NOT EXISTS (SELECT 1 FROM dbo.DimSeismicDepth)
 BEGIN
     INSERT INTO dbo.DimSeismicDepth (SeismicDepthKey, BandName, LowerBoundKM, UpperBoundKM)
@@ -110,9 +92,7 @@ ELSE
     PRINT 'DimSeismicDepth already populated – skipped.';
 GO
 
--- ---------------------------------------------------------------------------
 -- DimSeverityDeaths
--- ---------------------------------------------------------------------------
 IF NOT EXISTS (SELECT 1 FROM dbo.DimSeverityDeaths)
 BEGIN
     INSERT INTO dbo.DimSeverityDeaths (SeverityDeathsKey, SeverityCode, LowerBound, UpperBound)
@@ -128,9 +108,7 @@ ELSE
     PRINT 'DimSeverityDeaths already populated – skipped.';
 GO
 
--- ---------------------------------------------------------------------------
 -- DimSeverityAffected
--- ---------------------------------------------------------------------------
 IF NOT EXISTS (SELECT 1 FROM dbo.DimSeverityAffected)
 BEGIN
     INSERT INTO dbo.DimSeverityAffected (SeverityAffectedKey, SeverityCode, LowerBound, UpperBound)
@@ -146,7 +124,6 @@ ELSE
     PRINT 'DimSeverityAffected already populated – skipped.';
 GO
 
--- ---------------------------------------------------------------------------
 -- REF_CountryMaster
 -- Reference table consumed by usp_Load_DimGeography.
 -- GEM_PGA_g values are country-level medians (approximate) from the
@@ -154,7 +131,6 @@ GO
 -- GeoSeismicZone: Very Low|Low|Moderate|High|Very High
 -- CountryDurableKey: stable integer that does NOT change when a country
 --                    renames itself (used as SCD2 business key).
--- ---------------------------------------------------------------------------
 IF OBJECT_ID('dbo.REF_CountryMaster', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.REF_CountryMaster (
@@ -355,7 +331,6 @@ BEGIN
     (156, 'FSM', 'FM',  'Micronesia (Fed. States of)',  'Micronesia',               'Oceania',  0.200, 'High'),
     (157, 'PLW', 'PW',  'Palau',                        'Micronesia',               'Oceania',  0.200, 'High'),
     -- Remaining UN members (low seismicity)
-    (158, 'SWE', 'SE',  'Sweden',                       'Northern Europe',          'Europe',   0.020, 'Very Low'),
     (159, 'AFR', NULL,  'Africa (unspecified)',          'Sub-Saharan Africa',       'Africa',   0.040, 'Very Low'),
     (160, 'PSE', 'PS',  'State of Palestine',           'Western Asia',             'Asia',     0.180, 'Moderate'),
     (161, 'XKX', NULL,  'Kosovo',                       'Southern Europe',          'Europe',   0.200, 'High');

@@ -1,0 +1,396 @@
+﻿<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationDate="6/13/2026 6:11:34 PM"
+  DTS:CreationName="Microsoft.Package"
+  DTS:CreatorComputerName="LAPTOP-Q8FRBHD5"
+  DTS:CreatorName="LAPTOP-Q8FRBHD5\Mateu"
+  DTS:DTSID="{05CBAC4D-8C2B-4BE2-B3E5-F5521EE78DBC}"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:LastModifiedProductVersion="17.0.1016.0"
+  DTS:LocaleID="1045"
+  DTS:ObjectName="Package1"
+  DTS:PackageType="5"
+  DTS:VersionBuild="5"
+  DTS:VersionGUID="{E32171E4-ACF8-425D-A575-CE7B4780ED49}">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:Variables />
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\SEQ_Extract"
+      DTS:CreationName="STOCK:SEQUENCE"
+      DTS:Description="Sequence Container"
+      DTS:DTSID="{9B7DA1E3-F4CD-4381-A033-44976FC09EB7}"
+      DTS:ExecutableType="STOCK:SEQUENCE"
+      DTS:LocaleID="-1"
+      DTS:ObjectName="SEQ_Extract">
+      <DTS:Variables />
+      <DTS:Executables>
+        <DTS:Executable
+          DTS:refId="Package\SEQ_Extract\EPT_ExtractEMDAT"
+          DTS:CreationName="Microsoft.ExecuteProcess"
+          DTS:Description="Execute Process Task"
+          DTS:DTSID="{70293D00-08E2-43E7-9808-178CB4377019}"
+          DTS:ExecutableType="Microsoft.ExecuteProcess"
+          DTS:LocaleID="-1"
+          DTS:ObjectName="EPT_ExtractEMDAT"
+          DTS:TaskContact="Execute Process Task;Microsoft Corporation; SQL Server 2025; © 2025 Microsoft Corporation; All Rights Reserved;http://www.microsoft.com/sql/support/default.asp;1"
+          DTS:ThreadHint="0">
+          <DTS:Variables />
+          <DTS:ObjectData>
+            <ExecuteProcessData
+              Executable="C:\Python310\python.exe"
+              Arguments="extract_emdat.py"
+              WorkingDirectory="C:\Users\Mateu\Github\DWH\Geoseismic_Risk_DWH\etl\python"
+              FailTaskIfReturnCodeIsNotSuccessValue="False" />
+          </DTS:ObjectData>
+        </DTS:Executable>
+        <DTS:Executable
+          DTS:refId="Package\SEQ_Extract\EPT_ExtractUSGS"
+          DTS:CreationName="Microsoft.ExecuteProcess"
+          DTS:Description="Execute Process Task"
+          DTS:DTSID="{D0E17FB2-7046-43C5-A58A-844566D0E030}"
+          DTS:ExecutableType="Microsoft.ExecuteProcess"
+          DTS:LocaleID="-1"
+          DTS:ObjectName="EPT_ExtractUSGS"
+          DTS:TaskContact="Execute Process Task;Microsoft Corporation; SQL Server 2025; © 2025 Microsoft Corporation; All Rights Reserved;http://www.microsoft.com/sql/support/default.asp;1"
+          DTS:ThreadHint="0">
+          <DTS:Variables />
+          <DTS:ObjectData>
+            <ExecuteProcessData
+              Executable="C:\Python310\python.exe"
+              Arguments="extract_usgs.py"
+              WorkingDirectory="C:\Users\Mateu\Github\DWH\Geoseismic_Risk_DWH\etl\python" />
+          </DTS:ObjectData>
+        </DTS:Executable>
+      </DTS:Executables>
+      <DTS:PrecedenceConstraints>
+        <DTS:PrecedenceConstraint
+          DTS:refId="Package\SEQ_Extract.PrecedenceConstraints[Constraint]"
+          DTS:CreationName=""
+          DTS:DTSID="{97F94FB1-DD70-472E-87F9-81177A91774D}"
+          DTS:From="Package\SEQ_Extract\EPT_ExtractUSGS"
+          DTS:LogicalAnd="True"
+          DTS:ObjectName="Constraint"
+          DTS:To="Package\SEQ_Extract\EPT_ExtractEMDAT" />
+      </DTS:PrecedenceConstraints>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SEQ_Transform"
+      DTS:CreationName="STOCK:SEQUENCE"
+      DTS:Description="Sequence Container"
+      DTS:DTSID="{7BB9BD08-4F1D-433F-B3AB-6F8ABCB920AE}"
+      DTS:ExecutableType="STOCK:SEQUENCE"
+      DTS:LocaleID="-1"
+      DTS:ObjectName="SEQ_Transform">
+      <DTS:Variables />
+      <DTS:Executables>
+        <DTS:Executable
+          DTS:refId="Package\SEQ_Transform\SQL_LoadDimGeography"
+          DTS:CreationName="Microsoft.ExecuteSQLTask"
+          DTS:Description="Execute SQL Task"
+          DTS:DTSID="{DC43EA0A-88A0-4CEE-B911-3D2C35818A5A}"
+          DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+          DTS:LocaleID="-1"
+          DTS:ObjectName="SQL_LoadDimGeography"
+          DTS:TaskContact="Execute SQL Task; Microsoft Corporation; SQL Server 2025; © 2025 Microsoft Corporation; All Rights Reserved;http://www.microsoft.com/sql/support/default.asp;1"
+          DTS:ThreadHint="0">
+          <DTS:Variables />
+          <DTS:ObjectData>
+            <SQLTask:SqlTaskData
+              SQLTask:Connection="{58961C45-2A89-4995-B0FC-19DEF4C5736D}"
+              SQLTask:SqlStatementSource="EXEC dbo.usp_Load_DimGeography;" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+          </DTS:ObjectData>
+        </DTS:Executable>
+        <DTS:Executable
+          DTS:refId="Package\SEQ_Transform\SQL_LoadFactDisaster"
+          DTS:CreationName="Microsoft.ExecuteSQLTask"
+          DTS:Description="Execute SQL Task"
+          DTS:DTSID="{9E81B3AF-0247-4988-8CE3-3819AB673F40}"
+          DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+          DTS:LocaleID="-1"
+          DTS:ObjectName="SQL_LoadFactDisaster"
+          DTS:TaskContact="Execute SQL Task; Microsoft Corporation; SQL Server 2025; © 2025 Microsoft Corporation; All Rights Reserved;http://www.microsoft.com/sql/support/default.asp;1"
+          DTS:ThreadHint="0">
+          <DTS:Variables />
+          <DTS:ObjectData>
+            <SQLTask:SqlTaskData
+              SQLTask:Connection="{58961C45-2A89-4995-B0FC-19DEF4C5736D}"
+              SQLTask:SqlStatementSource="EXEC dbo.usp_Load_FactDisaster;" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+          </DTS:ObjectData>
+        </DTS:Executable>
+        <DTS:Executable
+          DTS:refId="Package\SEQ_Transform\SQL_LoadFactSeismic"
+          DTS:CreationName="Microsoft.ExecuteSQLTask"
+          DTS:Description="Execute SQL Task"
+          DTS:DTSID="{B2F40C49-11C5-44EB-9D82-414C17DFD046}"
+          DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+          DTS:LocaleID="-1"
+          DTS:ObjectName="SQL_LoadFactSeismic"
+          DTS:TaskContact="Execute SQL Task; Microsoft Corporation; SQL Server 2025; © 2025 Microsoft Corporation; All Rights Reserved;http://www.microsoft.com/sql/support/default.asp;1"
+          DTS:ThreadHint="0">
+          <DTS:Variables />
+          <DTS:ObjectData>
+            <SQLTask:SqlTaskData
+              SQLTask:Connection="{58961C45-2A89-4995-B0FC-19DEF4C5736D}"
+              SQLTask:SqlStatementSource="EXEC dbo.usp_Load_FactSeismic;" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+          </DTS:ObjectData>
+        </DTS:Executable>
+      </DTS:Executables>
+      <DTS:PrecedenceConstraints>
+        <DTS:PrecedenceConstraint
+          DTS:refId="Package\SEQ_Transform.PrecedenceConstraints[Constraint]"
+          DTS:CreationName=""
+          DTS:DTSID="{E49F318D-820B-4221-835A-CF6DB5DDFC5D}"
+          DTS:From="Package\SEQ_Transform\SQL_LoadDimGeography"
+          DTS:LogicalAnd="True"
+          DTS:ObjectName="Constraint"
+          DTS:To="Package\SEQ_Transform\SQL_LoadFactSeismic" />
+        <DTS:PrecedenceConstraint
+          DTS:refId="Package\SEQ_Transform.PrecedenceConstraints[Constraint 1]"
+          DTS:CreationName=""
+          DTS:DTSID="{5FDDB198-E7F5-47BD-B1CC-2CCC7198156F}"
+          DTS:From="Package\SEQ_Transform\SQL_LoadFactSeismic"
+          DTS:LogicalAnd="True"
+          DTS:ObjectName="Constraint 1"
+          DTS:To="Package\SEQ_Transform\SQL_LoadFactDisaster" />
+      </DTS:PrecedenceConstraints>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL_BuildBridge"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:Description="Execute SQL Task"
+      DTS:DTSID="{38D4F170-F0CB-4359-BBEE-A3DC08A58FCE}"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:LocaleID="-1"
+      DTS:ObjectName="SQL_BuildBridge"
+      DTS:TaskContact="Execute SQL Task; Microsoft Corporation; SQL Server 2025; © 2025 Microsoft Corporation; All Rights Reserved;http://www.microsoft.com/sql/support/default.asp;1"
+      DTS:ThreadHint="0">
+      <DTS:Variables />
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{58961C45-2A89-4995-B0FC-19DEF4C5736D}"
+          SQLTask:SqlStatementSource="EXEC dbo.usp_Build_BridgeDisasterSeismic;" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+  <DTS:PrecedenceConstraints>
+    <DTS:PrecedenceConstraint
+      DTS:refId="Package.PrecedenceConstraints[Constraint]"
+      DTS:CreationName=""
+      DTS:DTSID="{A0CAADCA-9900-49AC-94AA-A81AA5335627}"
+      DTS:From="Package\SEQ_Extract"
+      DTS:LogicalAnd="True"
+      DTS:ObjectName="Constraint"
+      DTS:To="Package\SEQ_Transform" />
+    <DTS:PrecedenceConstraint
+      DTS:refId="Package.PrecedenceConstraints[Constraint 1]"
+      DTS:CreationName=""
+      DTS:DTSID="{A7190888-1538-4685-AA82-1F563EB8DDF9}"
+      DTS:From="Package\SEQ_Transform"
+      DTS:LogicalAnd="True"
+      DTS:ObjectName="Constraint 1"
+      DTS:To="Package\SQL_BuildBridge" />
+  </DTS:PrecedenceConstraints>
+  <DTS:DesignTimeProperties><![CDATA[<?xml version="1.0"?>
+<!--This CDATA section contains the layout information of the package. The section includes information such as (x,y) coordinates, width, and height.-->
+<!--If you manually edit this section and make a mistake, you can delete it. -->
+<!--The package will still be able to load normally but the previous layout information will be lost and the designer will automatically re-arrange the elements on the design surface.-->
+<Objects
+  Version="8">
+  <!--Each node below will contain properties that do not affect runtime behavior.-->
+  <Package
+    design-time-name="Package">
+    <LayoutInfo>
+      <GraphLayout
+        Capacity="16" xmlns="clr-namespace:Microsoft.SqlServer.IntegrationServices.Designer.Model.Serialization;assembly=Microsoft.SqlServer.IntegrationServices.Graph" xmlns:mssgle="clr-namespace:Microsoft.SqlServer.Graph.LayoutEngine;assembly=Microsoft.SqlServer.Graph" xmlns:assembly="http://schemas.microsoft.com/winfx/2006/xaml">
+        <NodeLayout
+          Size="163.5,42"
+          Id="Package\SEQ_Transform\SQL_LoadDimGeography"
+          TopLeft="131.666666666667,39.3333333333333" />
+        <NodeLayout
+          Size="181,42"
+          Id="Package\SEQ_Transform\SQL_LoadFactSeismic"
+          TopLeft="132.5,141" />
+        <NodeLayout
+          Size="183.5,42"
+          Id="Package\SEQ_Transform\SQL_LoadFactDisaster"
+          TopLeft="128.333333333333,251.833333333333" />
+        <EdgeLayout
+          Id="Package\SEQ_Transform.PrecedenceConstraints[Constraint]"
+          TopLeft="213.416666666667,81.3333333333333">
+          <EdgeLayout.Curve>
+            <mssgle:Curve
+              StartConnector="{assembly:Null}"
+              EndConnector="9.58333333333337,59.6666666666667"
+              Start="0,0"
+              End="9.58333333333337,52.1666666666667">
+              <mssgle:Curve.Segments>
+                <mssgle:SegmentCollection
+                  Capacity="5">
+                  <mssgle:LineSegment
+                    End="0,25.8333333333333" />
+                  <mssgle:CubicBezierSegment
+                    Point1="0,25.8333333333333"
+                    Point2="0,29.8333333333333"
+                    Point3="4,29.8333333333333" />
+                  <mssgle:LineSegment
+                    End="5.58333333333337,29.8333333333333" />
+                  <mssgle:CubicBezierSegment
+                    Point1="5.58333333333337,29.8333333333333"
+                    Point2="9.58333333333337,29.8333333333333"
+                    Point3="9.58333333333337,33.8333333333333" />
+                  <mssgle:LineSegment
+                    End="9.58333333333337,52.1666666666667" />
+                </mssgle:SegmentCollection>
+              </mssgle:Curve.Segments>
+            </mssgle:Curve>
+          </EdgeLayout.Curve>
+          <EdgeLayout.Labels>
+            <EdgeLabelCollection />
+          </EdgeLayout.Labels>
+        </EdgeLayout>
+        <EdgeLayout
+          Id="Package\SEQ_Transform.PrecedenceConstraints[Constraint 1]"
+          TopLeft="221.541666666667,183">
+          <EdgeLayout.Curve>
+            <mssgle:Curve
+              StartConnector="{assembly:Null}"
+              EndConnector="0,68.8333333333334"
+              Start="0,0"
+              End="0,61.3333333333334">
+              <mssgle:Curve.Segments>
+                <mssgle:SegmentCollection
+                  Capacity="5">
+                  <mssgle:LineSegment
+                    End="0,61.3333333333334" />
+                </mssgle:SegmentCollection>
+              </mssgle:Curve.Segments>
+            </mssgle:Curve>
+          </EdgeLayout.Curve>
+          <EdgeLayout.Labels>
+            <EdgeLabelCollection />
+          </EdgeLayout.Labels>
+        </EdgeLayout>
+        <ContainerLayout
+          HeaderHeight="43"
+          IsExpanded="True"
+          PanelSize="398,377"
+          Size="398,420"
+          Id="Package\SEQ_Transform"
+          TopLeft="554.5,142.833333333333" />
+        <NodeLayout
+          Size="180,42"
+          Id="Package\SEQ_Extract\EPT_ExtractUSGS"
+          TopLeft="70,22" />
+        <NodeLayout
+          Size="189,42"
+          Id="Package\SEQ_Extract\EPT_ExtractEMDAT"
+          TopLeft="57.5000000000001,137.833333333333" />
+        <EdgeLayout
+          Id="Package\SEQ_Extract.PrecedenceConstraints[Constraint]"
+          TopLeft="156,64">
+          <EdgeLayout.Curve>
+            <mssgle:Curve
+              StartConnector="{assembly:Null}"
+              EndConnector="0,73.8333333333334"
+              Start="0,0"
+              End="0,66.3333333333334">
+              <mssgle:Curve.Segments>
+                <mssgle:SegmentCollection
+                  Capacity="5">
+                  <mssgle:LineSegment
+                    End="0,66.3333333333334" />
+                </mssgle:SegmentCollection>
+              </mssgle:Curve.Segments>
+            </mssgle:Curve>
+          </EdgeLayout.Curve>
+          <EdgeLayout.Labels>
+            <EdgeLabelCollection />
+          </EdgeLayout.Labels>
+        </EdgeLayout>
+        <ContainerLayout
+          HeaderHeight="43"
+          IsExpanded="True"
+          PanelSize="310,235"
+          Size="310,278"
+          Id="Package\SEQ_Extract"
+          TopLeft="84.5000000000001,24" />
+        <NodeLayout
+          Size="156.5,42"
+          Id="Package\SQL_BuildBridge"
+          TopLeft="1097.5,301.833333333333" />
+        <EdgeLayout
+          Id="Package.PrecedenceConstraints[Constraint]"
+          TopLeft="394.5,163">
+          <EdgeLayout.Curve>
+            <mssgle:Curve
+              StartConnector="{assembly:Null}"
+              EndConnector="160,189.833333333333"
+              Start="0,0"
+              End="152.5,189.833333333333">
+              <mssgle:Curve.Segments>
+                <mssgle:SegmentCollection
+                  Capacity="5">
+                  <mssgle:LineSegment
+                    End="76,0" />
+                  <mssgle:CubicBezierSegment
+                    Point1="76,0"
+                    Point2="80,0"
+                    Point3="80,4" />
+                  <mssgle:LineSegment
+                    End="80,185.833333333333" />
+                  <mssgle:CubicBezierSegment
+                    Point1="80,185.833333333333"
+                    Point2="80,189.833333333333"
+                    Point3="84,189.833333333333" />
+                  <mssgle:LineSegment
+                    End="152.5,189.833333333333" />
+                </mssgle:SegmentCollection>
+              </mssgle:Curve.Segments>
+            </mssgle:Curve>
+          </EdgeLayout.Curve>
+          <EdgeLayout.Labels>
+            <EdgeLabelCollection />
+          </EdgeLayout.Labels>
+        </EdgeLayout>
+        <EdgeLayout
+          Id="Package.PrecedenceConstraints[Constraint 1]"
+          TopLeft="952.5,352.833333333333">
+          <EdgeLayout.Curve>
+            <mssgle:Curve
+              StartConnector="{assembly:Null}"
+              EndConnector="145,-30.0000000000001"
+              Start="0,0"
+              End="137.5,-30.0000000000001">
+              <mssgle:Curve.Segments>
+                <mssgle:SegmentCollection
+                  Capacity="5">
+                  <mssgle:LineSegment
+                    End="68.5,0" />
+                  <mssgle:CubicBezierSegment
+                    Point1="68.5,0"
+                    Point2="72.5,0"
+                    Point3="72.5,-4" />
+                  <mssgle:LineSegment
+                    End="72.5,-26.0000000000001" />
+                  <mssgle:CubicBezierSegment
+                    Point1="72.5,-26.0000000000001"
+                    Point2="72.5,-30.0000000000001"
+                    Point3="76.5,-30.0000000000001" />
+                  <mssgle:LineSegment
+                    End="137.5,-30.0000000000001" />
+                </mssgle:SegmentCollection>
+              </mssgle:Curve.Segments>
+            </mssgle:Curve>
+          </EdgeLayout.Curve>
+          <EdgeLayout.Labels>
+            <EdgeLabelCollection />
+          </EdgeLayout.Labels>
+        </EdgeLayout>
+      </GraphLayout>
+    </LayoutInfo>
+  </Package>
+</Objects>]]></DTS:DesignTimeProperties>
+</DTS:Executable>

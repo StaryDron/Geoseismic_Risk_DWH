@@ -1,23 +1,8 @@
--- =============================================================================
 -- 04_load_fact_disaster.sql
--- Stored procedure: usp_Load_FactDisaster
---
--- Transforms STG_EMDAT_Raw → FactDisaster.
---
--- Date handling:
---   StartDate / EndDate resolved from StartYear/Month/Day and EndYear/Month/Day.
---   Missing day defaults to 1; missing month defaults to 1.
---   Both dates must resolve to a key present in DimDate (1990-2030).
---   Rows with unresolvable dates are skipped and logged.
---
--- Monetary columns: EMDAT stores $000 USD; multiplied ×1 000 here.
---
--- NULL handling for casualty sub-components (per business rule in doc):
---   IF TotalAffected IS NULL  → NumInjuries / NumOtherAffected / NumHomeless = NULL
---   IF TotalAffected IS NOT NULL → missing sub-components set to 0
---
--- Idempotent: duplicate DisNo are skipped.
--- =============================================================================
+-- Stored procedure usp_Load_FactDisaster: transforms STG_EMDAT_Raw into
+-- FactDisaster, resolving date/geography/severity keys and converting
+-- monetary columns from $000 USD to full USD. Idempotent via ETL_FactDisasterLoad
+-- (duplicate DisNo are already filtered out at staging-load time).
 
 USE SeismicDisasterDWH;
 GO

@@ -1,8 +1,6 @@
--- =============================================================================
 -- 00_staging_schema.sql
 -- Creates the SeismicDisasterSTG database and all staging/control tables.
 -- Run once on a fresh SQL Server instance before any ETL execution.
--- =============================================================================
 
 IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = N'SeismicDisasterSTG')
 BEGIN
@@ -13,9 +11,7 @@ GO
 USE SeismicDisasterSTG;
 GO
 
--- ---------------------------------------------------------------------------
 -- ETL run control
--- ---------------------------------------------------------------------------
 IF OBJECT_ID('dbo.ETL_RunLog', 'U') IS NULL
 CREATE TABLE dbo.ETL_RunLog (
     RunId           INT             NOT NULL IDENTITY(1,1),
@@ -33,10 +29,8 @@ CREATE TABLE dbo.ETL_RunLog (
 );
 GO
 
--- ---------------------------------------------------------------------------
 -- USGS raw staging
 -- Mirrors USGS FDSN CSV output + ISO3 column added by reverse geocoding
--- ---------------------------------------------------------------------------
 IF OBJECT_ID('dbo.STG_USGS_Raw', 'U') IS NULL
 CREATE TABLE dbo.STG_USGS_Raw (
     StgId           BIGINT          NOT NULL IDENTITY(1,1),
@@ -55,13 +49,16 @@ CREATE TABLE dbo.STG_USGS_Raw (
     Updated         NVARCHAR(30)    NULL,
     Place           NVARCHAR(200)   NULL,
     EventType       NVARCHAR(20)    NULL,
-    HorizontalError DECIMAL(6,2)    NULL,
-    DepthError      DECIMAL(6,2)    NULL,
+    HorizontalError DECIMAL(10,2)   NULL,
+    DepthError      DECIMAL(10,2)   NULL,
     MagError        DECIMAL(5,3)    NULL,
     MagNst          INT             NULL,
     [Status]        NVARCHAR(10)    NULL,   -- reviewed | automatic
     LocationSource  NVARCHAR(5)     NULL,
     MagSource       NVARCHAR(5)     NULL,
+    Mmi             DECIMAL(4,2)    NULL,   -- Modified Mercalli Intensity (geojson only)
+    Sig             INT             NULL,   -- USGS significance score (geojson only)
+    Cdi             DECIMAL(3,1)    NULL,   -- Community Decimal Intensity (geojson only)
     ISO3            CHAR(3)         NULL,   -- added by Python reverse_geocoder
     LoadBatchId     INT             NOT NULL,
     LoadTimestamp   DATETIME        NOT NULL DEFAULT GETDATE(),
@@ -73,9 +70,7 @@ CREATE INDEX IX_STG_USGS_EventId ON dbo.STG_USGS_Raw (EventId);
 CREATE INDEX IX_STG_USGS_Batch   ON dbo.STG_USGS_Raw (LoadBatchId);
 GO
 
--- ---------------------------------------------------------------------------
 -- USGS rejected records
--- ---------------------------------------------------------------------------
 IF OBJECT_ID('dbo.STG_USGS_Rejected', 'U') IS NULL
 CREATE TABLE dbo.STG_USGS_Rejected (
     RejId           BIGINT          NOT NULL IDENTITY(1,1),
@@ -88,11 +83,9 @@ CREATE TABLE dbo.STG_USGS_Rejected (
 );
 GO
 
--- ---------------------------------------------------------------------------
 -- EMDAT raw staging
 -- Monetary columns stored in $000 USD (as exported); multiplied ×1 000
 -- when loaded into FactDisaster.
--- ---------------------------------------------------------------------------
 IF OBJECT_ID('dbo.STG_EMDAT_Raw', 'U') IS NULL
 CREATE TABLE dbo.STG_EMDAT_Raw (
     StgId               INT             NOT NULL IDENTITY(1,1),

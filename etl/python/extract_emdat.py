@@ -1,15 +1,10 @@
 """
-Load an EMDAT CSV export into staging table STG_EMDAT_Raw.
+Load an EMDAT CSV export (config.EMDAT_FILE_PATH) into staging table STG_EMDAT_Raw.
 
-EMDAT requires a free account at emdat.be; export all fields for Disaster Type = Earthquake.
-Place the downloaded file at config.EMDAT_FILE_PATH and run this script.
-
-Monetary columns in EMDAT are denominated in $000 USD (adjusted). The script stores
-them verbatim; the T-SQL stored procedure usp_Load_FactDisaster multiplies by 1 000
-when inserting into FactDisaster (BIGINT columns represent full USD).
-
-SSIS integration: Execute Process Task calling:
-    python extract_emdat.py
+EMDAT requires a free account at emdat.be; export all fields for
+Disaster Type = Earthquake. Monetary columns stay in $000 USD as exported;
+usp_Load_FactDisaster converts to full USD. Dedups by DisNo against existing
+staging rows. Invoked by SSIS via Execute Process Task.
 """
 
 import sys
@@ -30,7 +25,7 @@ log = logging.getLogger(__name__)
 
 # EMDAT 2023+ public export column names (strip whitespace on read)
 EMDAT_COL_MAP = {
-    "Dis No":                           "DisNo",
+    "DisNo.":                           "DisNo",
     "Year":                             "Year",
     "Disaster Group":                   "DisasterGroup",
     "Disaster Subgroup":                "DisasterSubgroup",
@@ -40,7 +35,7 @@ EMDAT_COL_MAP = {
     "Country":                          "Country",
     "ISO":                              "ISO",
     "Region":                           "Region",
-    "Continent":                        "Continent",
+    "Subregion":                        "Continent",
     "Location":                         "Location",
     "Origin":                           "Origin",
     "Latitude":                         "Latitude",
@@ -52,14 +47,14 @@ EMDAT_COL_MAP = {
     "End Month":                        "EndMonth",
     "End Day":                          "EndDay",
     "Total Deaths":                     "TotalDeaths",
-    "No Injured":                       "NoInjured",
-    "No Affected":                      "NoAffected",
-    "No Homeless":                      "NoHomeless",
+    "No. Injured":                      "NoInjured",
+    "No. Affected":                     "NoAffected",
+    "No. Homeless":                     "NoHomeless",
     "Total Affected":                   "TotalAffected",
     "Reconstruction Costs, Adjusted ('000 US$)": "ReconstrCostsAdj",
-    "Insured Damages, Adjusted ('000 US$)":      "InsuredDamagesAdj",
-    "Total Damages, Adjusted ('000 US$)":        "TotalDamagesAdj",
-    "Associated Dis":                   "AssociatedDis",
+    "Insured Damage, Adjusted ('000 US$)":       "InsuredDamagesAdj",
+    "Total Damage, Adjusted ('000 US$)":         "TotalDamagesAdj",
+    "Associated Types":                 "AssociatedDis",
 }
 
 
@@ -81,7 +76,8 @@ def _bigint_or_none(val) -> int | None:
 
 def _float_or_none(val) -> float | None:
     try:
-        return float(val)
+        f = float(val)
+        return f if f == f else None
     except (TypeError, ValueError):
         return None
 
@@ -134,7 +130,7 @@ def load_to_staging(conn: pyodbc.Connection, df: pd.DataFrame, run_id: int) -> i
     for _, r in df.iterrows():
         rows.append((
             _str(r.get("DisNo"), 20),
-            _int_or_none(r.get("Year")),
+            _int_or_none(r.get("StartYear")),
             _str(r.get("DisasterGroup"), 30),
             _str(r.get("DisasterSubgroup"), 30),
             _str(r.get("DisasterType"), 30),
@@ -166,8 +162,10 @@ def load_to_staging(conn: pyodbc.Connection, df: pd.DataFrame, run_id: int) -> i
             run_id,
         ))
 
-    conn.cursor().executemany(
-        """INSERT INTO STG_EMDAT_Raw (
+    cursor = conn.cursor()
+    for row in rows:
+        cursor.execute(
+            """INSERT INTO STG_EMDAT_Raw (
                DisNo, [Year], DisasterGroup, DisasterSubgroup, DisasterType, DisasterSubtype,
                EventName, Country, ISO, Region, Continent, Location, Origin,
                Latitude, Longitude, StartYear, StartMonth, StartDay,
@@ -176,8 +174,8 @@ def load_to_staging(conn: pyodbc.Connection, df: pd.DataFrame, run_id: int) -> i
                ReconstrCostsAdj, InsuredDamagesAdj, TotalDamagesAdj,
                TsunamiFlag, LoadBatchId
            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        rows,
-    )
+            row,
+        )
     conn.commit()
     return len(rows)
 
@@ -194,6 +192,11 @@ def run():
     log.info("  %d earthquake disaster records after filtering.", len(df))
 
     conn = pyodbc.connect(config.connection_string(config.DB_STG_DATABASE))
+
+    existing_disno = {row[0] for row in conn.cursor().execute("SELECT DisNo FROM STG_EMDAT_Raw")}
+    before = len(df)
+    df = df[~df["DisNo"].isin(existing_disno)]
+    log.info("  %d new records (%d already in staging).", len(df), before - len(df))
     run_id = start_run(conn, str(emdat_path))
 
     try:

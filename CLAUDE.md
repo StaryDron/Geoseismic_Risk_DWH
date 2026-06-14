@@ -6,6 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Data Warehouse schema for geoseismic risk and tsunami disaster analysis. The single deliverable is `Skrypt_SQL_Hurtownia_tsunami.sql`, a T-SQL script that creates and populates the `SeismicDisasterDWH` database on Microsoft SQL Server.
 
+## Required Software (Windows)
+
+- **SQL Server** (Developer/Express edition) + **SQL Server Management Studio (SSMS)** — hosts both databases, runs all `.sql` scripts.
+- **Python 3.x** with `pip install -r etl/python/requirements.txt` (uses `pyodbc`, `requests`, `reverse_geocoder`, `pandas`) + **ODBC Driver for SQL Server**.
+- **SQL Server Data Tools (SSDT)** for Visual Studio — to open/edit `etl/ssis/SeismicDisasterDWH_ETL.dtsx` (Integration Services project) and `ssas/SeismicRiskModel.bim` (Analysis Services Tabular project).
+- **SQL Server Analysis Services (SSAS, Tabular mode)** instance — to deploy the `.bim` model.
+- **Power BI Desktop** — to build the report, connect to the deployed SSAS model, and paste in `powerbi/dax_measures.dax`.
+- **SQL Server Agent** (part of SQL Server, not Express) — to run `etl/sql/06_sql_agent_job.sql` for scheduled orchestration.
+
+## Project Status (see memory: project_etl_progress)
+
+Done: DWH schema, staging DB, Python extractors, all load stored procs, bridge matching, SSAS model, DAX measures, SSIS package, SQL Agent job.
+
+Still needed: obtain EMDAT CSV (register at emdat.be) and run `extract_emdat.py`; deploy SSAS model and build the actual Power BI `.pbix` report (12 planned dashboards); write a functional tests document; final PDF report (see `KM1.pdf`, `Raport_KM2.pdf`, `STTM_tsunami.xlsx` for the original plan/spec).
+
 ## ETL Execution Order
 
 ```
@@ -98,7 +113,11 @@ Classic dimensional model (star schema) with two fact tables joined by a bridge.
 
 **`BridgeDisasterSeismic`** — resolves the many-to-many relationship between disasters and seismic events. Carries `DistanceKM` and `TimeLagDays` as relationship-level attributes. Composite PK `(DisasterKey, SeismicKey)`; secondary index on `(SeismicKey, DisasterKey)` for reverse lookups.
 
-### Design Conventions
+#### SCD2 Trigger Mechanism
+
+`usp_Load_DimGeography` only creates a new SCD2 version when `REF_CountryMaster.CountryName` itself changes (a manual/reference-data update, e.g. after an official ISO 3166 country-name-change notice). It does **not** react to the free-text `Country` fields in `STG_USGS_Raw`/`STG_EMDAT_Raw` — those names are inconsistent across sources, so `ISO3` against `REF_CountryMaster` is treated as the single source of truth. `etl/sql/07_scd2_demo.sql` demonstrates this by renaming three countries in `REF_CountryMaster` and re-running the load, producing two `DimGeography` versions per country.
+
+## Design Conventions
 
 - All tables carry `InsertDate` and `UpdateDate DATETIME DEFAULT GETDATE()` audit columns.
 - Surrogate key types are sized to expected cardinality: `TINYINT` for small lookup tables, `SMALLINT` for medium, `INT`/`BIGINT` for large fact tables.

@@ -18,7 +18,7 @@ BRIDGE_WINDOW_DAYS  = 3        # max days seismic event precedes disaster
 
 
 def connection_string(database: str) -> str:
-    base = f"DRIVER={{SQL Server}};SERVER={DB_SERVER};DATABASE={database};"
+    base = f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={DB_SERVER};DATABASE={database};"
     if DB_TRUSTED_CONNECTION:
         return base + "Trusted_Connection=yes;"
     return base + f"UID={DB_USERNAME};PWD={DB_PASSWORD};"

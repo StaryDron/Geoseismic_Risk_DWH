@@ -1,0 +1,12 @@
+﻿<?xml version="1.0"?>
+<DTS:ConnectionManager xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:ObjectName="localhost.SeismicDisasterSTG"
+  DTS:DTSID="{C0BF7046-2A86-44EC-9BF2-80DE6132FE1D}"
+  DTS:CreationName="OLEDB">
+  <DTS:ObjectData>
+    <DTS:ConnectionManager
+      DTS:ConnectRetryCount="1"
+      DTS:ConnectRetryInterval="5"
+      DTS:ConnectionString="Data Source=localhost;Initial Catalog=SeismicDisasterSTG;Provider=SQLNCLI11.1;Integrated Security=SSPI;Application Name=SSIS-SeismicDisasterDWH_ETL-{C0BF7046-2A86-44EC-9BF2-80DE6132FE1D}localhost.SeismicDisasterSTG;Auto Translate=False;" />
+  </DTS:ObjectData>
+</DTS:ConnectionManager>

@@ -1,26 +1,13 @@
--- =============================================================================
 -- 05_bridge_matching.sql
--- Haversine helper function + stored procedure: usp_Build_BridgeDisasterSeismic
---
--- For every FactDisaster row that has no bridge entries yet, the procedure
--- finds all FactSeismic events that satisfy BOTH:
---   Temporal:  seismic event date is within BRIDGE_WINDOW_DAYS before disaster StartDate
---   Spatial:   epicentre is within BRIDGE_RADIUS_KM of disaster centroid
---
--- ~4% of EMDAT records lack coordinates (Latitude IS NULL).
--- For those, spatial matching is skipped; they appear with no bridge rows.
---
--- Configuration constants:
---   @RadiusKM  = 100 km   (matches spec)
---   @WindowDays = 3 days  (matches spec)
--- =============================================================================
+-- fn_Haversine + usp_Build_BridgeDisasterSeismic: links each FactDisaster row
+-- to nearby FactSeismic events within @RadiusKM (100km) and @WindowDays (3
+-- days) before the disaster's start date. Records without coordinates (~4%
+-- of EMDAT) are skipped.
 
 USE SeismicDisasterDWH;
 GO
 
--- ---------------------------------------------------------------------------
 -- Haversine distance function (returns km)
--- ---------------------------------------------------------------------------
 CREATE OR ALTER FUNCTION dbo.fn_Haversine (
     @lat1 DECIMAL(8,5), @lon1 DECIMAL(9,5),
     @lat2 DECIMAL(8,5), @lon2 DECIMAL(9,5)
@@ -40,9 +27,7 @@ BEGIN
 END;
 GO
 
--- ---------------------------------------------------------------------------
 -- Bridge matching procedure
--- ---------------------------------------------------------------------------
 CREATE OR ALTER PROCEDURE dbo.usp_Build_BridgeDisasterSeismic
     @RadiusKM   INT = 100,
     @WindowDays INT = 3
